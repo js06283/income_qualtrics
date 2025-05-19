@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<style>
+			body {
+				font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+					Arial, sans-serif;
+				margin: 20px;
+				padding: 0;
+			}
+			.container {
+				display: flex;
+				gap: 30px;
+				max-width: 1400px;
+				margin: 0 auto;
+			}
+			.left-panel {
+				flex: 1;
+				min-width: 400px;
+			}
+			.right-panel {
+				flex: 1;
+			}
+			.header {
+				font-size: 24px;
+				font-weight: 500;
+				margin-bottom: 20px;
+				color: #1565c0;
+			}
+			.summary-box {
+				background: #f8f9fa;
+				border-radius: 8px;
+				padding: 20px;
+				margin-bottom: 20px;
+				box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+			}
+			.summary-title {
+				font-size: 16px;
+				font-weight: 600;
+				margin-bottom: 8px;
+				color: #2196f3;
+			}
+			.summary-content {
+				font-size: 15px;
+				line-height: 1.5;
+				color: #424242;
+			}
+			table {
+				width: 100%;
+				border-collapse: collapse;
+				margin-top: 10px;
+				background: white;
+				box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+				border-radius: 8px;
+				overflow: hidden;
+			}
+			th,
+			td {
+				padding: 12px 15px;
+				text-align: left;
+				border-bottom: 1px solid #e0e0e0;
+				font-size: 14px;
+			}
+			th {
+				background-color: #f5f5f5;
+				font-weight: 600;
+				color: #1976d2;
+			}
+			td {
+				color: #424242;
+			}
+			tr:last-child td {
+				border-bottom: none;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<div class="left-panel">
+				<div class="header">Does this person earn more than 50k?</div>
+
+				<div class="summary-box">
+					<div class="summary-title">LLM Summary</div>
+					<div class="summary-content">
+						In a quiet Ohio town, a devoted husband and accomplished CMS-Clergy
+						figure balances his demanding 50-hour workweek, driven by passion
+						for service. Beneath his professional veneer, warmth and community
+						thrive, as he weaves faith and family into the tapestry of his life.
+					</div>
+				</div>
+
+				<div class="summary-box">
+					<div class="summary-title">Logistic Model</div>
+					<div class="summary-content">54% chance of income over 50k</div>
+				</div>
+
+				<table id="table">
+					<tbody>
+						<tr>
+							<th>Column Name</th>
+							<th>Value</th>
+						</tr>
+						<tr>
+							<td>Age</td>
+							<td>44</td>
+						</tr>
+						<tr>
+							<td>Class of Worker</td>
+							<td>
+								Employee of a private not-for-profit, tax-exempt, or charitable
+								organization
+							</td>
+						</tr>
+						<tr>
+							<td>Educational Attainment</td>
+							<td>Professional degree beyond a bachelor's degree</td>
+						</tr>
+						<tr>
+							<td>Marital Status</td>
+							<td>Married</td>
+						</tr>
+						<tr>
+							<td>Occupation</td>
+							<td>CMS-Clergy</td>
+						</tr>
+						<tr>
+							<td>Place of Birth</td>
+							<td>Ohio/OH</td>
+						</tr>
+						<tr>
+							<td>Relationship to Householder</td>
+							<td>Husband/wife</td>
+						</tr>
+						<tr>
+							<td>Usual Hours Worked per week</td>
+							<td>50.0</td>
+						</tr>
+						<tr>
+							<td>Sex</td>
+							<td>Male</td>
+						</tr>
+						<tr>
+							<td>Race</td>
+							<td>White alone</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<div class="right-panel">
+				<!-- Chat interface will be injected here by main.js -->
+			</div>
+		</div>
+		<script src="main.js"></script>
+	</body>
+</html>
