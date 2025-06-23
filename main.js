@@ -7,8 +7,25 @@ document.addEventListener("DOMContentLoaded", function () {
 	var threadId = null;
 
 	// Replace all previous proxy URLs with the new production endpoint
-	const PROXY_URL =
-		"https://openai-proxy-874udl7oo-js06283s-projects.vercel.app/openai-proxy";
+	function getProxyUrl() {
+		// Check for URL parameter first (e.g., ?api=https://my-api.vercel.app)
+		const urlParams = new URLSearchParams(window.location.search);
+		const apiParam = urlParams.get("api");
+		if (apiParam) {
+			return `${apiParam}/openai-proxy`;
+		}
+
+		// Check for environment variable (if available)
+		if (window.PROXY_URL) {
+			return window.PROXY_URL;
+		}
+
+		// Default to the openai-proxy deployment
+		return "https://openai-proxy-iota-nine.vercel.app/openai-proxy";
+	}
+
+	const PROXY_URL = getProxyUrl();
+	console.log("🔗 Using proxy URL:", PROXY_URL);
 
 	// Global variables
 	var currentView = 1;
@@ -902,13 +919,34 @@ document.addEventListener("DOMContentLoaded", function () {
 									contentItem.text.value
 								) {
 									console.log(
-										`📝 Displaying assistant content: ${contentItem.text.value.substring(
+										`📝 Displaying assistant text content: ${contentItem.text.value.substring(
 											0,
 											50
 										)}...`
 									);
 									displayMessage(
 										"Assistant: " + contentItem.text.value,
+										"assistant-message"
+									);
+								} else if (
+									contentItem.type === "image_url" &&
+									contentItem.image_url &&
+									contentItem.image_url.url
+								) {
+									console.log(
+										`📝 Displaying assistant image content: ${contentItem.image_url.url}`
+									);
+									displayImage(contentItem.image_url.url, "assistant-message");
+								} else if (
+									contentItem.type === "image_file" &&
+									contentItem.image_file &&
+									contentItem.image_file.file_id
+								) {
+									console.log(
+										`📝 Displaying assistant file image content: ${contentItem.image_file.file_id}`
+									);
+									displayFileImage(
+										contentItem.image_file.file_id,
 										"assistant-message"
 									);
 								}
@@ -1232,6 +1270,176 @@ document.addEventListener("DOMContentLoaded", function () {
 		chatContainer.scrollTop = chatContainer.scrollHeight;
 	}
 
+	// Function to display images in the chat interface
+	function displayImage(imageUrl, className) {
+		// Check if chat container exists
+		const chatContainer = document.getElementById("chat-container");
+		if (!chatContainer) {
+			console.log("❌ Chat container not found, cannot display image");
+			return;
+		}
+
+		// Create image container
+		const imageContainer = document.createElement("div");
+		imageContainer.className = className;
+		imageContainer.style.padding = "12px 16px";
+		imageContainer.style.borderRadius = "12px";
+		imageContainer.style.marginBottom = "12px";
+		imageContainer.style.maxWidth = "80%";
+		imageContainer.style.boxShadow = "0 1px 2px rgba(0,0,0,0.1)";
+
+		if (className === "user-message") {
+			imageContainer.style.backgroundColor = "#E3F2FD";
+			imageContainer.style.marginLeft = "auto";
+			imageContainer.style.borderBottomRightRadius = "4px";
+		} else {
+			imageContainer.style.backgroundColor = "#F5F5F5";
+			imageContainer.style.marginRight = "auto";
+			imageContainer.style.borderBottomLeftRadius = "4px";
+		}
+
+		// Create image element
+		const imageElement = document.createElement("img");
+		imageElement.src = imageUrl;
+		imageElement.style.maxWidth = "100%";
+		imageElement.style.height = "auto";
+		imageElement.style.borderRadius = "8px";
+		imageElement.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
+		imageElement.style.display = "block";
+		imageElement.style.margin = "0 auto";
+
+		// Add loading state
+		imageElement.style.opacity = "0.7";
+		imageElement.style.transition = "opacity 0.3s ease";
+
+		// Handle image load success
+		imageElement.onload = function () {
+			this.style.opacity = "1";
+			console.log("✅ Image loaded successfully:", imageUrl);
+		};
+
+		// Handle image load error
+		imageElement.onerror = function () {
+			console.error("❌ Failed to load image:", imageUrl);
+			this.style.display = "none";
+
+			// Create error message
+			const errorMessage = document.createElement("div");
+			errorMessage.style.color = "#d32f2f";
+			errorMessage.style.fontSize = "14px";
+			errorMessage.style.fontStyle = "italic";
+			errorMessage.style.textAlign = "center";
+			errorMessage.style.padding = "20px";
+			errorMessage.textContent = "Failed to load image";
+			imageContainer.appendChild(errorMessage);
+		};
+
+		// Add click to expand functionality
+		imageElement.style.cursor = "pointer";
+		imageElement.title = "Click to view full size";
+		imageElement.onclick = function () {
+			openImageModal(imageUrl);
+		};
+
+		// Add image to container
+		imageContainer.appendChild(imageElement);
+
+		// Add to chat container
+		chatContainer.appendChild(imageContainer);
+		chatContainer.scrollTop = chatContainer.scrollHeight;
+	}
+
+	// Function to open image in modal for full-size viewing
+	function openImageModal(imageUrl) {
+		// Remove existing modal if any
+		const existingModal = document.getElementById("image-modal");
+		if (existingModal) {
+			existingModal.remove();
+		}
+
+		// Create modal overlay
+		const modal = document.createElement("div");
+		modal.id = "image-modal";
+		modal.style.position = "fixed";
+		modal.style.top = "0";
+		modal.style.left = "0";
+		modal.style.width = "100%";
+		modal.style.height = "100%";
+		modal.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+		modal.style.display = "flex";
+		modal.style.justifyContent = "center";
+		modal.style.alignItems = "center";
+		modal.style.zIndex = "10000";
+		modal.style.cursor = "pointer";
+
+		// Create modal content
+		const modalContent = document.createElement("div");
+		modalContent.style.position = "relative";
+		modalContent.style.maxWidth = "90%";
+		modalContent.style.maxHeight = "90%";
+		modalContent.style.cursor = "default";
+
+		// Create close button
+		const closeButton = document.createElement("button");
+		closeButton.innerHTML = "×";
+		closeButton.style.position = "absolute";
+		closeButton.style.top = "-40px";
+		closeButton.style.right = "0";
+		closeButton.style.background = "none";
+		closeButton.style.border = "none";
+		closeButton.style.color = "white";
+		closeButton.style.fontSize = "30px";
+		closeButton.style.cursor = "pointer";
+		closeButton.style.padding = "5px 10px";
+		closeButton.style.borderRadius = "5px";
+		closeButton.style.transition = "background-color 0.2s";
+
+		closeButton.onmouseover = function () {
+			this.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
+		};
+		closeButton.onmouseout = function () {
+			this.style.backgroundColor = "transparent";
+		};
+
+		// Create full-size image
+		const fullImage = document.createElement("img");
+		fullImage.src = imageUrl;
+		fullImage.style.maxWidth = "100%";
+		fullImage.style.maxHeight = "100%";
+		fullImage.style.objectFit = "contain";
+		fullImage.style.borderRadius = "8px";
+		fullImage.style.boxShadow = "0 4px 20px rgba(0,0,0,0.3)";
+
+		// Add event listeners
+		closeButton.onclick = function (e) {
+			e.stopPropagation();
+			modal.remove();
+		};
+		modal.onclick = function () {
+			modal.remove();
+		};
+		modalContent.onclick = function (e) {
+			e.stopPropagation();
+		};
+
+		// Assemble modal
+		modalContent.appendChild(closeButton);
+		modalContent.appendChild(fullImage);
+		modal.appendChild(modalContent);
+
+		// Add to document
+		document.body.appendChild(modal);
+
+		// Add keyboard support
+		const handleKeyPress = function (e) {
+			if (e.key === "Escape") {
+				modal.remove();
+				document.removeEventListener("keydown", handleKeyPress);
+			}
+		};
+		document.addEventListener("keydown", handleKeyPress);
+	}
+
 	// ✅ Add event listener properly closed
 	// Only add event listener if chat interface exists
 	const inputBox = document.getElementById("user-input");
@@ -1342,5 +1550,261 @@ document.addEventListener("DOMContentLoaded", function () {
 		console.log(
 			"✅ Loading animation test created! You should see animated dots."
 		);
+	};
+
+	// Add test function for image display
+	window.testImageDisplay = function () {
+		const chatContainer = document.getElementById("chat-container");
+		if (!chatContainer) {
+			console.log("❌ Chat container not found");
+			return;
+		}
+
+		// Test with a sample image (replace with your own test image URL)
+		const testImageUrl =
+			"https://via.placeholder.com/400x300/2196F3/FFFFFF?text=Test+Image";
+		console.log("🖼️ Testing image display with:", testImageUrl);
+		displayImage(testImageUrl, "assistant-message");
+	};
+
+	// Function to display file-based images from ChatGPT
+	function displayFileImage(fileId, className) {
+		// Check if chat container exists
+		const chatContainer = document.getElementById("chat-container");
+		if (!chatContainer) {
+			console.log("❌ Chat container not found, cannot display file image");
+			return;
+		}
+
+		// Create image container
+		const imageContainer = document.createElement("div");
+		imageContainer.className = className;
+		imageContainer.style.padding = "12px 16px";
+		imageContainer.style.borderRadius = "12px";
+		imageContainer.style.marginBottom = "12px";
+		imageContainer.style.maxWidth = "80%";
+		imageContainer.style.boxShadow = "0 1px 2px rgba(0,0,0,0.1)";
+
+		if (className === "user-message") {
+			imageContainer.style.backgroundColor = "#E3F2FD";
+			imageContainer.style.marginLeft = "auto";
+			imageContainer.style.borderBottomRightRadius = "4px";
+		} else {
+			imageContainer.style.backgroundColor = "#F5F5F5";
+			imageContainer.style.marginRight = "auto";
+			imageContainer.style.borderBottomLeftRadius = "4px";
+		}
+
+		// Create loading indicator for file image
+		const loadingDiv = document.createElement("div");
+		loadingDiv.style.display = "flex";
+		loadingDiv.style.alignItems = "center";
+		loadingDiv.style.justifyContent = "center";
+		loadingDiv.style.padding = "20px";
+		loadingDiv.style.color = "#757575";
+		loadingDiv.style.fontStyle = "italic";
+		loadingDiv.innerHTML = `
+			<div style="display: flex; align-items: center; gap: 8px;">
+				<div style="width: 16px; height: 16px; border: 2px solid #e0e0e0; border-top: 2px solid #2196F3; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+				<span>Loading image...</span>
+			</div>
+		`;
+
+		// Add spinning animation CSS
+		if (!document.getElementById("spinning-animation-style")) {
+			const style = document.createElement("style");
+			style.id = "spinning-animation-style";
+			style.textContent = `
+				@keyframes spin {
+					0% { transform: rotate(0deg); }
+					100% { transform: rotate(360deg); }
+				}
+			`;
+			document.head.appendChild(style);
+		}
+
+		imageContainer.appendChild(loadingDiv);
+		chatContainer.appendChild(imageContainer);
+		chatContainer.scrollTop = chatContainer.scrollHeight;
+
+		// First, get the image reference from the proxy
+		fetch(PROXY_URL, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				path: `/files/${fileId}/content`,
+				method: "GET",
+			}),
+		})
+			.then((response) => {
+				if (!response.ok) {
+					throw new Error(`HTTP error! status: ${response.status}`);
+				}
+				return response.blob();
+			})
+			.then((blob) => {
+				// Create object URL from blob
+				const imageUrl = URL.createObjectURL(blob);
+				console.log("✅ File image loaded successfully:", fileId);
+				console.log("🔍 Blob details:", {
+					size: blob.size,
+					type: blob.type,
+					url: imageUrl,
+				});
+
+				// Remove loading indicator
+				loadingDiv.remove();
+
+				// Create image element
+				const imageElement = document.createElement("img");
+				imageElement.src = imageUrl;
+				imageElement.style.maxWidth = "100%";
+				imageElement.style.height = "auto";
+				imageElement.style.borderRadius = "8px";
+				imageElement.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
+				imageElement.style.display = "block";
+				imageElement.style.margin = "0 auto";
+
+				// Add loading state
+				imageElement.style.opacity = "0.7";
+				imageElement.style.transition = "opacity 0.3s ease";
+
+				// Handle image load success
+				imageElement.onload = function () {
+					this.style.opacity = "1";
+					console.log("✅ File image rendered successfully");
+				};
+
+				// Handle image load error
+				imageElement.onerror = function () {
+					console.error("❌ Failed to render file image:", fileId);
+					console.error("🔍 Image element error details:", {
+						src: this.src,
+						naturalWidth: this.naturalWidth,
+						naturalHeight: this.naturalHeight,
+						complete: this.complete,
+					});
+					this.style.display = "none";
+
+					// Create error message
+					const errorMessage = document.createElement("div");
+					errorMessage.style.color = "#d32f2f";
+					errorMessage.style.fontSize = "14px";
+					errorMessage.style.fontStyle = "italic";
+					errorMessage.style.textAlign = "center";
+					errorMessage.style.padding = "20px";
+					errorMessage.textContent = "Failed to load image";
+					imageContainer.appendChild(errorMessage);
+				};
+
+				// Add click to expand functionality
+				imageElement.style.cursor = "pointer";
+				imageElement.title = "Click to view full size";
+				imageElement.onclick = function () {
+					openImageModal(imageUrl);
+				};
+
+				// Add image to container
+				imageContainer.appendChild(imageElement);
+
+				// Clean up object URL when image is removed
+				imageElement.addEventListener("load", function () {
+					// Store the object URL for cleanup
+					imageElement.dataset.objectUrl = imageUrl;
+				});
+			})
+			.catch((error) => {
+				console.error("❌ Error fetching file image:", error);
+				loadingDiv.innerHTML = `
+					<div style="color: #d32f2f; font-size: 14px; font-style: italic; text-align: center;">
+						Failed to load image: ${error.message}
+					</div>
+				`;
+			});
+	}
+
+	// Add test function for file-based image display
+	window.testFileImageDisplay = function (fileId = "file-abc123") {
+		const chatContainer = document.getElementById("chat-container");
+		if (!chatContainer) {
+			console.log("❌ Chat container not found");
+			return;
+		}
+
+		console.log("🖼️ Testing file image display with file ID:", fileId);
+		displayFileImage(fileId, "assistant-message");
+	};
+
+	// Add debug function to test file retrieval
+	window.debugFileRetrieval = function (fileId = "file-abc123") {
+		console.log("🔍 Debugging file retrieval for:", fileId);
+
+		fetch(PROXY_URL, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				path: `/files/${fileId}/content`,
+				method: "GET",
+			}),
+		})
+			.then((response) => {
+				console.log("🔍 Response status:", response.status);
+				console.log("🔍 Response headers:", response.headers);
+				console.log("🔍 Response ok:", response.ok);
+
+				if (!response.ok) {
+					return response.text().then((text) => {
+						console.error("🔍 Error response body:", text);
+						throw new Error(
+							`HTTP error! status: ${response.status}, body: ${text}`
+						);
+					});
+				}
+
+				return response.arrayBuffer();
+			})
+			.then((buffer) => {
+				console.log("🔍 Success! Received buffer of size:", buffer.byteLength);
+				console.log("🔍 Buffer type:", typeof buffer);
+				console.log("🔍 Buffer constructor:", buffer.constructor.name);
+			})
+			.catch((error) => {
+				console.error("🔍 File retrieval failed:", error);
+			});
+	};
+
+	// Add simple proxy test function
+	window.testProxyConnection = function () {
+		console.log("🔍 Testing proxy connection...");
+
+		fetch(PROXY_URL, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				path: "/models",
+				method: "GET",
+			}),
+		})
+			.then((response) => {
+				console.log("🔍 Proxy test response:");
+				console.log("  - Status:", response.status);
+				console.log("  - OK:", response.ok);
+
+				if (!response.ok) {
+					return response.text().then((text) => {
+						console.error("🔍 Proxy test error body:", text);
+						throw new Error(`Proxy test failed: ${response.status}`);
+					});
+				}
+
+				return response.json();
+			})
+			.then((data) => {
+				console.log("🔍 Proxy test successful!");
+				console.log("🔍 Response data:", data);
+			})
+			.catch((error) => {
+				console.error("🔍 Proxy test failed:", error);
+			});
 	};
 });
