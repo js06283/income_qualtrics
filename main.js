@@ -301,7 +301,7 @@ document.addEventListener("DOMContentLoaded", function () {
 		tbody.innerHTML = "";
 		tbody.appendChild(headerRow);
 
-		// Add data rows
+		// Define field mappings
 		const fieldMappings = {
 			Age: "Age",
 			"Class of Worker": "Class of Worker",
@@ -314,7 +314,13 @@ document.addEventListener("DOMContentLoaded", function () {
 			Race: "Race",
 		};
 
-		Object.keys(fieldMappings).forEach((key) => {
+		// Convert to array and shuffle the order
+		const shuffledFields = Object.keys(fieldMappings).sort(
+			() => Math.random() - 0.5
+		);
+
+		// Add data rows in shuffled order
+		shuffledFields.forEach((key) => {
 			if (dataDict[key] !== undefined) {
 				const row = document.createElement("tr");
 				const labelCell = document.createElement("td");
@@ -505,9 +511,6 @@ document.addEventListener("DOMContentLoaded", function () {
 			"What are the strongest indicators of high income for this person?",
 			"What are the biggest barriers to high income for this person?",
 			"How does their occupation compare to others in terms of pay?",
-			"What education level would maximize their income potential?",
-			"How might changing their occupation affect their income?",
-			"What age range typically sees peak earnings in their field?",
 			"How do their work hours compare to typical full-time employment?",
 			"What demographic factors work in their favor?",
 			"What demographic factors work against them?",
@@ -517,9 +520,6 @@ document.addEventListener("DOMContentLoaded", function () {
 			"How does their current situation compare to the average worker?",
 			"What skills might they need to increase their income?",
 			"How might their location affect their earning potential?",
-			"What economic factors could influence their income?",
-			"How does their profile compare to successful professionals?",
-			"What advice would you give to someone in their position?",
 			"What are the most important factors for income prediction?",
 		];
 
