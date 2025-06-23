@@ -380,12 +380,18 @@ document.addEventListener("DOMContentLoaded", function () {
 		rightPanel.classList.add("hidden");
 
 		// Show elements based on view
-		if (viewNumber >= 2) {
-			llmSummary.classList.remove("hidden");
+		if (viewNumber >= 1) {
+			// Show ML prediction in all views (1, 2, 3)
 			mlPrediction.classList.remove("hidden");
 		}
 
+		if (viewNumber >= 2) {
+			// Show LLM summary in views 2 and 3
+			llmSummary.classList.remove("hidden");
+		}
+
 		if (viewNumber === 3) {
+			// Show chat interface only in view 3
 			rightPanel.classList.remove("hidden");
 			// Initialize chat interface if not already created
 			if (!document.getElementById("chat-container")) {
