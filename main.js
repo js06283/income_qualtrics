@@ -789,14 +789,14 @@ document.addEventListener("DOMContentLoaded", function () {
 		// Check if chat container exists before trying to query it
 		const chatContainer = document.getElementById("chat-container");
 		if (chatContainer) {
-			// Also remove any elements with "Assistant is typing..." text
+			// Also remove any elements with loading indicator
 			const allElements = chatContainer.querySelectorAll("*");
 			allElements.forEach((el) => {
 				if (
-					el.textContent &&
-					el.textContent.includes("Assistant is typing...")
+					el.id === "loading-indicator" ||
+					el.classList.contains("loading-indicator")
 				) {
-					console.log("🧹 Removing element with 'Assistant is typing...' text");
+					console.log("🧹 Removing loading indicator element");
 					el.remove();
 				}
 			});
@@ -840,7 +840,14 @@ document.addEventListener("DOMContentLoaded", function () {
 				}
 
 				// Clear the chat container to show fresh conversation
+				// But preserve any loading indicator that might be there
+				const loadingIndicator = chatContainer.querySelector(
+					"#loading-indicator, .loading-indicator"
+				);
 				chatContainer.innerHTML = "";
+				if (loadingIndicator) {
+					chatContainer.appendChild(loadingIndicator);
+				}
 
 				console.log("📝 Total messages received:", data.data.length);
 				console.log("📝 Messages structure:", data.data);
@@ -1140,20 +1147,75 @@ document.addEventListener("DOMContentLoaded", function () {
 		// Only add loading indicator for new user messages (not when displaying conversation history)
 		if (
 			className === "user-message" &&
-			!chatContainer.innerHTML.includes("Assistant is typing...") &&
-			!document.getElementById("loading-indicator")
+			!document.getElementById("loading-indicator") &&
+			!document.querySelector(".loading-indicator")
 		) {
 			console.log("➕ Adding loading indicator for new user message");
-			const loadingElement = document.createElement("p");
-			loadingElement.id = "loading-indicator";
-			loadingElement.textContent = "Assistant is typing...";
-			loadingElement.style.fontStyle = "italic";
-			loadingElement.style.color = "#757575";
-			loadingElement.style.padding = "8px 12px";
-			loadingElement.style.margin = "8px 0";
-			loadingElement.style.fontSize = "13px";
-			loadingElement.style.display = "inline-block";
-			chatContainer.appendChild(loadingElement);
+
+			// Create loading container
+			const loadingContainer = document.createElement("div");
+			loadingContainer.id = "loading-indicator";
+			loadingContainer.className = "loading-indicator";
+			loadingContainer.style.display = "flex";
+			loadingContainer.style.alignItems = "center";
+			loadingContainer.style.gap = "8px";
+			loadingContainer.style.padding = "12px 16px";
+			loadingContainer.style.margin = "8px 0";
+			loadingContainer.style.backgroundColor = "#F5F5F5";
+			loadingContainer.style.borderRadius = "12px";
+			loadingContainer.style.maxWidth = "80%";
+			loadingContainer.style.borderBottomLeftRadius = "4px";
+
+			// Create loading text
+			const loadingText = document.createElement("span");
+			loadingText.textContent = "Assistant is thinking";
+			loadingText.style.fontSize = "14px";
+			loadingText.style.color = "#757575";
+			loadingText.style.fontStyle = "italic";
+
+			// Create loading dots container
+			const dotsContainer = document.createElement("div");
+			dotsContainer.className = "loading-dots";
+			dotsContainer.style.display = "flex";
+			dotsContainer.style.gap = "4px";
+			dotsContainer.style.alignItems = "center";
+
+			// Create three dots
+			for (let i = 0; i < 3; i++) {
+				const dot = document.createElement("div");
+				dot.className = "loading-dot";
+				dot.style.width = "6px";
+				dot.style.height = "6px";
+				dot.style.borderRadius = "50%";
+				dot.style.backgroundColor = "#2196F3";
+				dot.style.animation = `loadingPulse 1.4s ease-in-out infinite both`;
+				dot.style.animationDelay = `${i * 0.2}s`;
+				dotsContainer.appendChild(dot);
+			}
+
+			// Add CSS animation for the dots
+			if (!document.getElementById("loading-animation-style")) {
+				const style = document.createElement("style");
+				style.id = "loading-animation-style";
+				style.textContent = `
+					@keyframes loadingPulse {
+						0%, 80%, 100% {
+							transform: scale(0.8);
+							opacity: 0.5;
+						}
+						40% {
+							transform: scale(1);
+							opacity: 1;
+						}
+					}
+				`;
+				document.head.appendChild(style);
+			}
+
+			// Assemble the loading indicator
+			loadingContainer.appendChild(loadingText);
+			loadingContainer.appendChild(dotsContainer);
+			chatContainer.appendChild(loadingContainer);
 		} else if (className === "user-message") {
 			console.log("⚠️ Skipping loading indicator - conditions not met:");
 			console.log(
@@ -1161,12 +1223,9 @@ document.addEventListener("DOMContentLoaded", function () {
 				className === "user-message"
 			);
 			console.log(
-				"  - already contains 'Assistant is typing...':",
-				chatContainer.innerHTML.includes("Assistant is typing...")
-			);
-			console.log(
 				"  - loading indicator exists:",
-				!!document.getElementById("loading-indicator")
+				!!document.getElementById("loading-indicator") ||
+					!!document.querySelector(".loading-indicator")
 			);
 		}
 
@@ -1197,5 +1256,91 @@ document.addEventListener("DOMContentLoaded", function () {
 			codeElement.style.display = "none";
 			button.innerHTML = "📄 Show Code";
 		}
+	};
+
+	// Add test function for loading animation
+	window.testLoadingAnimation = function () {
+		const chatContainer = document.getElementById("chat-container");
+		if (!chatContainer) {
+			console.log("❌ Chat container not found");
+			return;
+		}
+
+		// Remove any existing loading indicator
+		const existingLoading = chatContainer.querySelector(
+			"#loading-indicator, .loading-indicator"
+		);
+		if (existingLoading) {
+			existingLoading.remove();
+		}
+
+		// Create loading container
+		const loadingContainer = document.createElement("div");
+		loadingContainer.id = "loading-indicator";
+		loadingContainer.className = "loading-indicator";
+		loadingContainer.style.display = "flex";
+		loadingContainer.style.alignItems = "center";
+		loadingContainer.style.gap = "8px";
+		loadingContainer.style.padding = "12px 16px";
+		loadingContainer.style.margin = "8px 0";
+		loadingContainer.style.backgroundColor = "#F5F5F5";
+		loadingContainer.style.borderRadius = "12px";
+		loadingContainer.style.maxWidth = "80%";
+		loadingContainer.style.borderBottomLeftRadius = "4px";
+
+		// Create loading text
+		const loadingText = document.createElement("span");
+		loadingText.textContent = "Assistant is thinking";
+		loadingText.style.fontSize = "14px";
+		loadingText.style.color = "#757575";
+		loadingText.style.fontStyle = "italic";
+
+		// Create loading dots container
+		const dotsContainer = document.createElement("div");
+		dotsContainer.className = "loading-dots";
+		dotsContainer.style.display = "flex";
+		dotsContainer.style.gap = "4px";
+		dotsContainer.style.alignItems = "center";
+
+		// Create three dots
+		for (let i = 0; i < 3; i++) {
+			const dot = document.createElement("div");
+			dot.className = "loading-dot";
+			dot.style.width = "6px";
+			dot.style.height = "6px";
+			dot.style.borderRadius = "50%";
+			dot.style.backgroundColor = "#2196F3";
+			dot.style.animation = `loadingPulse 1.4s ease-in-out infinite both`;
+			dot.style.animationDelay = `${i * 0.2}s`;
+			dotsContainer.appendChild(dot);
+		}
+
+		// Add CSS animation for the dots
+		if (!document.getElementById("loading-animation-style")) {
+			const style = document.createElement("style");
+			style.id = "loading-animation-style";
+			style.textContent = `
+				@keyframes loadingPulse {
+					0%, 80%, 100% {
+						transform: scale(0.8);
+						opacity: 0.5;
+					}
+					40% {
+						transform: scale(1);
+						opacity: 1;
+					}
+				}
+			`;
+			document.head.appendChild(style);
+		}
+
+		// Assemble the loading indicator
+		loadingContainer.appendChild(loadingText);
+		loadingContainer.appendChild(dotsContainer);
+		chatContainer.appendChild(loadingContainer);
+
+		console.log(
+			"✅ Loading animation test created! You should see animated dots."
+		);
 	};
 });
