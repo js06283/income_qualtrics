@@ -1,3 +1,95 @@
+// Password protection modal (add at the very top)
+(function () {
+	const PASSWORD = "NewYork1!"; // Change this to your desired password
+	const STORAGE_KEY = "qualtrics-ui-auth";
+
+	function showPasswordModal() {
+		const modal = document.createElement("div");
+		modal.id = "password-modal";
+		modal.style.position = "fixed";
+		modal.style.top = "0";
+		modal.style.left = "0";
+		modal.style.width = "100vw";
+		modal.style.height = "100vh";
+		modal.style.background = "rgba(0,0,0,0.7)";
+		modal.style.display = "flex";
+		modal.style.justifyContent = "center";
+		modal.style.alignItems = "center";
+		modal.style.zIndex = "99999";
+
+		const box = document.createElement("div");
+		box.style.background = "#fff";
+		box.style.padding = "32px 24px";
+		box.style.borderRadius = "12px";
+		box.style.boxShadow = "0 2px 16px rgba(0,0,0,0.2)";
+		box.style.display = "flex";
+		box.style.flexDirection = "column";
+		box.style.alignItems = "center";
+
+		const label = document.createElement("div");
+		label.textContent = "Enter password to access this site:";
+		label.style.marginBottom = "16px";
+		label.style.fontSize = "16px";
+		label.style.color = "#333";
+		box.appendChild(label);
+
+		const input = document.createElement("input");
+		input.type = "password";
+		input.style.padding = "10px 14px";
+		input.style.fontSize = "16px";
+		input.style.border = "1px solid #ccc";
+		input.style.borderRadius = "6px";
+		input.style.marginBottom = "12px";
+		input.autofocus = true;
+		box.appendChild(input);
+
+		const error = document.createElement("div");
+		error.style.color = "#d32f2f";
+		error.style.fontSize = "14px";
+		error.style.height = "18px";
+		error.style.marginBottom = "8px";
+		box.appendChild(error);
+
+		const button = document.createElement("button");
+		button.textContent = "Enter";
+		button.style.padding = "10px 24px";
+		button.style.background = "#1976D2";
+		button.style.color = "#fff";
+		button.style.border = "none";
+		button.style.borderRadius = "6px";
+		button.style.fontSize = "16px";
+		button.style.cursor = "pointer";
+		button.style.fontWeight = "600";
+		box.appendChild(button);
+
+		function tryAuth() {
+			if (input.value === PASSWORD) {
+				sessionStorage.setItem(STORAGE_KEY, "1");
+				modal.remove();
+			} else {
+				error.textContent = "Incorrect password.";
+				input.value = "";
+				input.focus();
+			}
+		}
+
+		button.onclick = tryAuth;
+		input.onkeydown = function (e) {
+			if (e.key === "Enter") tryAuth();
+		};
+
+		modal.appendChild(box);
+		document.body.appendChild(modal);
+		input.focus();
+	}
+
+	if (!sessionStorage.getItem(STORAGE_KEY)) {
+		window.addEventListener("DOMContentLoaded", showPasswordModal, {
+			once: true,
+		});
+	}
+})();
+
 document.addEventListener("DOMContentLoaded", function () {
 	console.log("DOM fully loaded");
 	// Your Qualtrics setup code or DOM manipulations here
