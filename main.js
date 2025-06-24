@@ -574,6 +574,14 @@ document.addEventListener("DOMContentLoaded", function () {
 			this.style.borderColor = "#e0e0e0";
 		});
 
+		// Allow sending message by pressing Enter
+		inputBox.addEventListener("keypress", function (event) {
+			if (event.key === "Enter") {
+				event.preventDefault();
+				sendMessage();
+			}
+		});
+
 		// Style the send button
 		var sendButton = document.createElement("button");
 		sendButton.textContent = "Send";
