@@ -125,6 +125,11 @@ document.addEventListener("DOMContentLoaded", function () {
 	var currentQuestionData = null;
 	var currentProblemId = null;
 
+	// Add at the top-level scope after other global variables
+	const ANSWER_KEY = [
+		0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0,
+	]; // 0=No, 1=Yes
+
 	// Load questions data from CSV
 	async function loadQuestionsData() {
 		try {
@@ -367,6 +372,9 @@ document.addEventListener("DOMContentLoaded", function () {
 				"with summary:",
 				question.name
 			);
+
+			// After updateTable, updateSummary, updateMLPrediction in loadQuestionData
+			renderMCQ(problemId);
 		} catch (error) {
 			console.error("Error parsing question data:", error);
 		}
@@ -398,6 +406,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
 		currentQuestionData = null;
 		threadId = null;
+
+		// In clearData(), also clear the MCQ
+		const mcqContainer = document.getElementById("mcq-container");
+		if (mcqContainer) mcqContainer.innerHTML = "";
 	}
 
 	// Update the data table
@@ -1907,4 +1919,99 @@ document.addEventListener("DOMContentLoaded", function () {
 				console.error("🔍 Proxy test failed:", error);
 			});
 	};
+
+	// Add this function at top-level in the DOMContentLoaded block
+	function renderMCQ(problemId) {
+		const container = document.getElementById("mcq-container");
+		if (!container) return;
+		container.innerHTML = "";
+		if (problemId === null || problemId === undefined || isNaN(problemId)) {
+			container.style.display = "none";
+			return;
+		}
+		container.style.display = "";
+		const correct = ANSWER_KEY[problemId];
+		// Build MCQ UI
+		const question = document.createElement("div");
+		question.style.margin = "24px 0 8px 0";
+		question.style.fontWeight = "600";
+		question.style.fontSize = "16px";
+		question.textContent = "Does this person earn more than 50k?";
+		container.appendChild(question);
+
+		const form = document.createElement("form");
+		form.style.display = "flex";
+		form.style.gap = "18px";
+		form.style.alignItems = "center";
+		form.onsubmit = function (e) {
+			e.preventDefault();
+		};
+
+		const yesLabel = document.createElement("label");
+		yesLabel.style.display = "flex";
+		yesLabel.style.alignItems = "center";
+		const yesRadio = document.createElement("input");
+		yesRadio.type = "radio";
+		yesRadio.name = "mcq";
+		yesRadio.value = "1";
+		yesLabel.appendChild(yesRadio);
+		yesLabel.appendChild(document.createTextNode(" Yes"));
+
+		const noLabel = document.createElement("label");
+		noLabel.style.display = "flex";
+		noLabel.style.alignItems = "center";
+		const noRadio = document.createElement("input");
+		noRadio.type = "radio";
+		noRadio.name = "mcq";
+		noRadio.value = "0";
+		noLabel.appendChild(noRadio);
+		noLabel.appendChild(document.createTextNode(" No"));
+
+		form.appendChild(yesLabel);
+		form.appendChild(noLabel);
+
+		const submitBtn = document.createElement("button");
+		submitBtn.type = "button";
+		submitBtn.textContent = "Submit";
+		submitBtn.style.marginLeft = "16px";
+		submitBtn.style.padding = "6px 18px";
+		submitBtn.style.background = "#1976D2";
+		submitBtn.style.color = "#fff";
+		submitBtn.style.border = "none";
+		submitBtn.style.borderRadius = "6px";
+		submitBtn.style.fontWeight = "600";
+		submitBtn.style.cursor = "pointer";
+		form.appendChild(submitBtn);
+
+		container.appendChild(form);
+
+		const feedback = document.createElement("div");
+		feedback.style.marginTop = "12px";
+		feedback.style.fontSize = "15px";
+		feedback.style.fontWeight = "500";
+		container.appendChild(feedback);
+
+		submitBtn.onclick = function () {
+			const selected = form.querySelector('input[name="mcq"]:checked');
+			if (!selected) {
+				feedback.textContent = "Please select an answer.";
+				feedback.style.color = "#d32f2f";
+				return;
+			}
+			const userAnswer = parseInt(selected.value);
+			if (userAnswer === correct) {
+				feedback.textContent = "✅ Correct!";
+				feedback.style.color = "#388e3c";
+			} else {
+				feedback.textContent = `❌ Incorrect. The correct answer is: ${
+					correct ? "Yes" : "No"
+				}`;
+				feedback.style.color = "#d32f2f";
+			}
+			// Disable further changes
+			yesRadio.disabled = true;
+			noRadio.disabled = true;
+			submitBtn.disabled = true;
+		};
+	}
 });
