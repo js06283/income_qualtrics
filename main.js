@@ -124,35 +124,85 @@ document.addEventListener("DOMContentLoaded", function () {
 	var questionsData = [];
 	var currentQuestionData = null;
 	var currentProblemId = null;
+	var answerKey = []; // Will be populated from CSV
+	var currentType = null; // Track current type selection
 
-	// Add at the top-level scope after other global variables
-	const ANSWER_KEY = [
-		0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0,
-	]; // 0=No, 1=Yes
+	// Define the 9 features
+	const FEATURES = [
+		"Age",
+		"Class of Worker",
+		"Educational Attainment",
+		"Marital Status",
+		"Occupation",
+		"Place of Birth",
+		"Usual Hours Worked per Week",
+		"Sex",
+		"Race",
+	];
+
+	// Define the original question pool globally
+	const originalQuestionPool = [
+		"What factors suggest this person might earn above 50k?",
+		"What factors suggest this person might earn below 50k?",
+		"How does their education level affect income potential?",
+		"What role does their occupation play in income determination?",
+		"How might their age influence their earning capacity?",
+		"What impact does their work hours have on income?",
+		"How does their marital status relate to income?",
+		"What effect might their place of birth have on earnings?",
+		"How does their class of worker affect income potential?",
+		"What role does gender play in income determination?",
+		"How might their race influence earning opportunities?",
+		"What are the strongest indicators of high income for this person?",
+		"What are the biggest barriers to high income for this person?",
+		"How does their occupation compare to others in terms of pay?",
+		"How do their work hours compare to typical full-time employment?",
+		"What demographic factors work in their favor?",
+		"What demographic factors work against them?",
+		"How does their background compare to high earners?",
+		"What career path would likely lead to higher income?",
+		"What industry trends might impact their income potential?",
+		"How does their current situation compare to the average worker?",
+		"What skills might they need to increase their income?",
+		"How might their location affect their earning potential?",
+		"What are the most important factors for income prediction?",
+	];
 
 	// Load questions data from CSV
 	async function loadQuestionsData() {
 		try {
-			const response = await fetch("questions.csv");
+			const response = await fetch("questions_630.csv");
 			const csvText = await response.text();
 			const lines = csvText.split("\n");
 			const headers = lines[0].split(",");
 
 			questionsData = [];
+			answerKey = []; // Reset answer key
 
 			for (let i = 1; i < lines.length; i++) {
 				if (lines[i].trim() === "") continue;
 
 				// Parse CSV line (handling quoted fields)
 				const values = parseCSVLine(lines[i]);
-				if (values.length >= 4) {
+				if (values.length >= 6) {
+					// Updated to expect 6 columns including outcome
 					const question = {
-						dict: values[0],
-						problem: parseInt(values[1]),
-						name: values[2],
-						summary: values[3],
+						dict: values[1], // dict is now in column 1
+						problem: parseInt(values[2]), // problem is now in column 2
+						name: values[3], // name is now in column 3
+						summary: values[4], // summary is now in column 4
+						outcome: values[5] === "True", // outcome is now in column 5
 					};
 					questionsData.push(question);
+
+					// Build answer key from outcome column
+					// Convert boolean to 0/1: False=0, True=1
+					const answer = question.outcome ? 1 : 0;
+
+					// Only add to answer key if we don't already have an answer for this problem
+					if (answerKey[question.problem] === undefined) {
+						answerKey[question.problem] = answer;
+					}
 
 					// Debug: Log person 19 specifically
 					if (question.problem === 19) {
@@ -162,6 +212,7 @@ document.addEventListener("DOMContentLoaded", function () {
 			}
 
 			console.log("Loaded questions data:", questionsData.length, "questions");
+			console.log("Answer key:", answerKey);
 
 			// Debug: Check what problem IDs we have
 			const problemIds = [...new Set(questionsData.map((q) => q.problem))].sort(
@@ -294,10 +345,13 @@ document.addEventListener("DOMContentLoaded", function () {
 			const selectedProblemId = this.value;
 			if (selectedProblemId) {
 				currentProblemId = selectedProblemId;
+				populateTypeSelector();
 				populateSummarySelector(selectedProblemId);
 				loadQuestionData(selectedProblemId);
 			} else {
 				currentProblemId = null;
+				currentType = null;
+				populateTypeSelector();
 				populateSummarySelector(null);
 				clearData();
 			}
@@ -410,6 +464,12 @@ document.addEventListener("DOMContentLoaded", function () {
 		// In clearData(), also clear the MCQ
 		const mcqContainer = document.getElementById("mcq-container");
 		if (mcqContainer) mcqContainer.innerHTML = "";
+
+		// Remove feature selector if it exists
+		const featureSelector = document.getElementById("inline-feature-selector");
+		if (featureSelector && featureSelector.parentElement) {
+			featureSelector.parentElement.remove();
+		}
 	}
 
 	// Update the data table
@@ -519,31 +579,25 @@ document.addEventListener("DOMContentLoaded", function () {
 				createChatInterface();
 			}
 		}
+
+		// Refresh type selector based on new view
+		if (currentProblemId) {
+			populateTypeSelector();
+		}
+
+		// Hide feature selector when not in View 3
+		if (viewNumber !== 3) {
+			const featureSelector = document.getElementById(
+				"inline-feature-selector"
+			);
+			if (featureSelector && featureSelector.parentElement) {
+				featureSelector.parentElement.remove();
+			}
+		}
 	};
 
 	// Function to create chat interface
 	function createChatInterface() {
-		// Create header for the chat interface
-		var chatHeader = document.createElement("div");
-		chatHeader.style.marginBottom = "15px";
-		chatHeader.style.color = "#1565C0";
-		chatHeader.style.fontSize = "20px";
-		chatHeader.style.fontWeight = "500";
-
-		var chatTitle = document.createElement("div");
-		chatTitle.textContent = "Ask Questions About This Person";
-		chatTitle.style.marginBottom = "8px";
-
-		var chatSubtitle = document.createElement("div");
-		chatSubtitle.textContent =
-			"Chat with AI to understand more about their income potential";
-		chatSubtitle.style.fontSize = "14px";
-		chatSubtitle.style.color = "#666";
-		chatSubtitle.style.fontWeight = "normal";
-
-		chatHeader.appendChild(chatTitle);
-		chatHeader.appendChild(chatSubtitle);
-
 		// Create and style the chat container
 		var chatContainer = document.createElement("div");
 		chatContainer.id = "chat-container";
@@ -556,6 +610,21 @@ document.addEventListener("DOMContentLoaded", function () {
 		chatContainer.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
 		chatContainer.style.marginBottom = "15px";
 		chatContainer.style.width = "100%";
+
+		// Add small message at the top of the chat container
+		var chatMessage = document.createElement("div");
+		chatMessage.textContent =
+			"Chat with AI to understand more about this person's income potential";
+		chatMessage.style.cssText = `
+			font-size: 12px;
+			color: #666;
+			font-style: italic;
+			margin-bottom: 15px;
+			padding-bottom: 10px;
+			border-bottom: 1px solid #f0f0f0;
+			text-align: center;
+		`;
+		chatContainer.appendChild(chatMessage);
 
 		// Create a container for input elements
 		var inputContainer = document.createElement("div");
@@ -624,6 +693,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 		// Create quick questions container for bottom buttons
 		var quickQuestionsContainer = document.createElement("div");
+		quickQuestionsContainer.className = "quick-questions-container";
 		quickQuestionsContainer.style.display = "flex";
 		quickQuestionsContainer.style.flexDirection = "column";
 		quickQuestionsContainer.style.gap = "10px";
@@ -743,9 +813,50 @@ document.addEventListener("DOMContentLoaded", function () {
 			quickQuestionsContainer.appendChild(questionButton);
 		});
 
+		// Create refresh button container (now at the bottom)
+		const refreshContainer = document.createElement("div");
+		refreshContainer.style.cssText = `
+			display: flex;
+			justify-content: center;
+			margin-top: 10px;
+		`;
+
+		// Create refresh button
+		const refreshButton = document.createElement("button");
+		refreshButton.textContent = "Refresh";
+		refreshButton.style.cssText = `
+			padding: 4px 8px;
+			background: #f5f5f5;
+			border: 1px solid #e0e0e0;
+			border-radius: 4px;
+			cursor: pointer;
+			font-size: 11px;
+			color: #666;
+			transition: all 0.2s ease;
+		`;
+
+		// Add hover effects
+		refreshButton.addEventListener("mouseover", function () {
+			this.style.background = "#e3f2fd";
+			this.style.borderColor = "#2196f3";
+			this.style.color = "#2196f3";
+		});
+		refreshButton.addEventListener("mouseout", function () {
+			this.style.background = "#f5f5f5";
+			this.style.borderColor = "#e0e0e0";
+			this.style.color = "#666";
+		});
+
+		// Add click handler
+		refreshButton.addEventListener("click", function () {
+			refreshQuickQuestions();
+		});
+
+		refreshContainer.appendChild(refreshButton);
+		quickQuestionsContainer.appendChild(refreshContainer);
+
 		// Find the right panel and add the chat interface
 		var rightPanel = document.getElementById("right-panel");
-		rightPanel.appendChild(chatHeader);
 		rightPanel.appendChild(chatContainer);
 		rightPanel.appendChild(inputContainer);
 		rightPanel.appendChild(quickQuestionsContainer);
@@ -1930,7 +2041,15 @@ document.addEventListener("DOMContentLoaded", function () {
 			return;
 		}
 		container.style.display = "";
-		const correct = ANSWER_KEY[problemId];
+		const correct = answerKey[problemId];
+
+		// Check if we have an answer for this problem
+		if (correct === undefined) {
+			console.warn("No answer found for problem", problemId);
+			container.style.display = "none";
+			return;
+		}
+
 		// Build MCQ UI
 		const question = document.createElement("div");
 		question.style.margin = "24px 0 8px 0";
@@ -2014,4 +2133,1414 @@ document.addEventListener("DOMContentLoaded", function () {
 			submitBtn.disabled = true;
 		};
 	}
-});
+
+	// Populate type selector dropdown (only visible in View 3)
+	function populateTypeSelector() {
+		let selector = document.getElementById("type-selector");
+
+		// Check if element exists
+		if (!selector) {
+			console.log(
+				"Type selector element not found, checking if it was replaced..."
+			);
+
+			// Check if there's a button container that replaced it
+			const buttonContainer = document.getElementById("type-selector-buttons");
+			if (buttonContainer) {
+				console.log("Found button container, using it as selector");
+				selector = buttonContainer;
+			} else {
+				console.log("No button container found, creating new type selector");
+				// Create the type selector if it doesn't exist
+				const selectorGroup = document.querySelector(
+					".selector-group:nth-child(2)"
+				);
+				if (selectorGroup) {
+					selector = document.createElement("select");
+					selector.id = "type-selector";
+					selector.innerHTML =
+						'<option value="">Select a person first...</option>';
+					selector.style.cssText = `
+						padding: 10px 15px;
+						border: 2px solid #e0e0e0;
+						border-radius: 8px;
+						font-size: 14px;
+						background: white;
+						color: #333;
+						cursor: pointer;
+						min-width: 200px;
+						transition: border-color 0.3s ease;
+					`;
+					selectorGroup.appendChild(selector);
+					console.log("Created new type selector element");
+				} else {
+					console.log("Could not find selector group to add type selector");
+					return;
+				}
+			}
+		}
+
+		console.log(
+			"Populating type selector for view:",
+			currentView,
+			"problemId:",
+			currentProblemId
+		);
+
+		if (!currentProblemId) {
+			if (selector.tagName === "SELECT") {
+				selector.innerHTML =
+					'<option value="">Select a person first...</option>';
+			}
+			return;
+		}
+
+		// Only show type selector in View 3 (chat view)
+		if (currentView === 3) {
+			console.log("Creating buttons for View 3");
+
+			// Create a new div to replace the select element
+			const buttonContainer = document.createElement("div");
+			buttonContainer.id = "type-selector-buttons";
+			buttonContainer.style.cssText = `
+				display: flex;
+				gap: 10px;
+				justify-content: center;
+				align-items: center;
+				min-height: 40px;
+				min-width: 200px;
+			`;
+
+			// Create Normal Questions button
+			const normalBtn = document.createElement("button");
+			normalBtn.id = "normal-questions-btn";
+			normalBtn.className = "type-button active";
+			normalBtn.textContent = "Normal Questions";
+			normalBtn.style.cssText = `
+				padding: 8px 16px;
+				border: 2px solid #2196f3;
+				background: #2196f3;
+				color: white;
+				border-radius: 6px;
+				cursor: pointer;
+				font-size: 14px;
+				font-weight: 500;
+				transition: all 0.3s ease;
+			`;
+
+			// Create Feature Questions button
+			const featureBtn = document.createElement("button");
+			featureBtn.id = "feature-questions-btn";
+			featureBtn.className = "type-button";
+			featureBtn.textContent = "Feature Questions";
+			featureBtn.style.cssText = `
+				padding: 8px 16px;
+				border: 2px solid #e0e0e0;
+				background: white;
+				color: #666;
+				border-radius: 6px;
+				cursor: pointer;
+				font-size: 14px;
+				font-weight: 500;
+				transition: all 0.3s ease;
+			`;
+
+			// Add buttons to the container
+			buttonContainer.appendChild(normalBtn);
+			buttonContainer.appendChild(featureBtn);
+
+			// Replace the select element with the button container
+			selector.parentNode.replaceChild(buttonContainer, selector);
+			console.log("Replaced select with button container");
+
+			// Add event listeners for buttons
+			normalBtn.addEventListener("click", function () {
+				console.log("Normal Questions button clicked");
+				// Update button states
+				normalBtn.classList.add("active");
+				normalBtn.style.background = "#2196f3";
+				normalBtn.style.color = "white";
+				normalBtn.style.borderColor = "#2196f3";
+
+				featureBtn.classList.remove("active");
+				featureBtn.style.background = "white";
+				featureBtn.style.color = "#666";
+				featureBtn.style.borderColor = "#e0e0e0";
+
+				currentType = "normal";
+
+				// Remove feature selector if it exists
+				const featureSelector = document.getElementById(
+					"inline-feature-selector"
+				);
+				if (featureSelector && featureSelector.parentElement) {
+					featureSelector.parentElement.remove();
+				}
+
+				// Restore original question pool
+				restoreOriginalQuestionPool();
+			});
+
+			featureBtn.addEventListener("click", function () {
+				console.log("Feature Questions button clicked");
+				// Update button states
+				featureBtn.classList.add("active");
+				featureBtn.style.background = "#2196f3";
+				featureBtn.style.color = "white";
+				featureBtn.style.borderColor = "#2196f3";
+
+				normalBtn.classList.remove("active");
+				normalBtn.style.background = "white";
+				normalBtn.style.color = "#666";
+				normalBtn.style.borderColor = "#e0e0e0";
+
+				currentType = "feature";
+				populateFeatureSelector(currentProblemId);
+			});
+
+			// Auto-select normal questions by default
+			currentType = "normal";
+		} else {
+			console.log("Restoring select for Views 1/2");
+			// For Views 1 and 2, restore the original select element
+			const buttonContainer = document.getElementById("type-selector-buttons");
+			if (buttonContainer) {
+				// Recreate the original select element
+				const newSelector = document.createElement("select");
+				newSelector.id = "type-selector";
+				newSelector.innerHTML =
+					'<option value="">Select a person first...</option>';
+				newSelector.style.cssText = `
+					padding: 10px 15px;
+					border: 2px solid #e0e0e0;
+					border-radius: 8px;
+					font-size: 14px;
+					background: white;
+					color: #333;
+					cursor: pointer;
+					min-width: 200px;
+					transition: border-color 0.3s ease;
+				`;
+				buttonContainer.parentNode.replaceChild(newSelector, buttonContainer);
+				console.log("Restored select element");
+			}
+			currentType = null;
+		}
+	}
+
+	// Populate feature selector (appears when "Feature Questions" is selected)
+	function populateFeatureSelector(problemId) {
+		// Create feature selector above the questions
+		createFeatureSelectorAboveQuestions(problemId);
+	}
+
+	// Create feature selector above the questions
+	function createFeatureSelectorAboveQuestions(problemId) {
+		// Remove existing feature selector if any
+		const existingSelector = document.getElementById("inline-feature-selector");
+		if (existingSelector) {
+			existingSelector.remove();
+		}
+
+		// Create feature selector container
+		const featureContainer = document.createElement("div");
+		featureContainer.style.cssText = `
+			margin-bottom: 12px;
+			margin-top:12px;
+			padding: 5px;
+			background: #f8f9fa;
+			border-radius: 6px;
+			border: 1px solid #e0e0e0;
+		`;
+
+		const featureLabel = document.createElement("label");
+		featureLabel.textContent = "Select a feature to ask about:";
+		featureLabel.style.cssText = `
+			display: block;
+			margin-bottom: 8px;
+			color: #333;
+			font-size: 14px;
+			font-weight: 500;
+		`;
+
+		const featureSelector = document.createElement("select");
+		featureSelector.id = "inline-feature-selector";
+		featureSelector.style.cssText = `
+			padding: 8px 12px;
+			border: 2px solid #e0e0e0;
+			border-radius: 6px;
+			font-size: 14px;
+			background: white;
+			color: #333;
+			cursor: pointer;
+			width: 100%;
+			max-width: 300px;
+			transition: border-color 0.3s ease;
+		`;
+
+		// Add focus effect
+		featureSelector.addEventListener("focus", function () {
+			this.style.outline = "none";
+			this.style.borderColor = "#2196f3";
+		});
+
+		// Populate with features in random order
+		featureSelector.innerHTML = '<option value="">Select feature...</option>';
+
+		// Create a shuffled copy of the features array
+		const shuffledFeatures = [...FEATURES].sort(() => Math.random() - 0.5);
+
+		shuffledFeatures.forEach((feature) => {
+			const option = document.createElement("option");
+			option.value = feature;
+			option.textContent = feature;
+			featureSelector.appendChild(option);
+		});
+
+		featureContainer.appendChild(featureLabel);
+		featureContainer.appendChild(featureSelector);
+
+		// Add to the right panel before the quick questions container
+		const rightPanel = document.getElementById("right-panel");
+		const quickQuestionsContainer = rightPanel.querySelector(
+			".quick-questions-container"
+		);
+		if (rightPanel && quickQuestionsContainer) {
+			rightPanel.insertBefore(featureContainer, quickQuestionsContainer);
+		}
+
+		// Add event listener for feature selection
+		featureSelector.addEventListener("change", function () {
+			const selectedFeature = this.value;
+			if (selectedFeature && currentProblemId) {
+				loadFeatureQuestion(currentProblemId, selectedFeature);
+			}
+		});
+
+		// Auto-select first feature
+		if (FEATURES.length > 0) {
+			featureSelector.value = FEATURES[0];
+			loadFeatureQuestion(problemId, FEATURES[0]);
+		}
+	}
+
+	// Show feature selection box below chat
+	function showFeatureBox(problemId) {
+		// Remove existing feature box if any
+		const existingBox = document.getElementById("feature-box");
+		if (existingBox) {
+			existingBox.remove();
+		}
+
+		// Create feature box container
+		const featureBox = document.createElement("div");
+		featureBox.id = "feature-box";
+		featureBox.style.cssText = `
+			margin-top: 15px;
+			padding: 20px;
+			background: #f8f9fa;
+			border-radius: 8px;
+			border: 1px solid #e0e0e0;
+			box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+		`;
+
+		// Create header
+		const header = document.createElement("div");
+		header.style.cssText = `
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			margin-bottom: 16px;
+			padding-bottom: 8px;
+			border-bottom: 1px solid #e0e0e0;
+		`;
+
+		const title = document.createElement("h4");
+		title.textContent = "Feature Questions";
+		title.style.cssText = `
+			margin: 0;
+			color: #1565c0;
+			font-size: 16px;
+			font-weight: 600;
+		`;
+
+		const closeButton = document.createElement("button");
+		closeButton.innerHTML = "×";
+		closeButton.style.cssText = `
+			background: none;
+			border: none;
+			font-size: 18px;
+			cursor: pointer;
+			color: #666;
+			padding: 0;
+			width: 24px;
+			height: 24px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			border-radius: 50%;
+			transition: background-color 0.2s;
+		`;
+
+		closeButton.addEventListener("mouseover", function () {
+			this.style.backgroundColor = "#e0e0e0";
+		});
+		closeButton.addEventListener("mouseout", function () {
+			this.style.backgroundColor = "transparent";
+		});
+
+		closeButton.addEventListener("click", function () {
+			featureBox.remove();
+			// Switch back to normal questions
+			currentType = "normal";
+			restoreOriginalQuestionPool();
+		});
+
+		header.appendChild(title);
+		header.appendChild(closeButton);
+
+		// Create feature selector section
+		const featureSection = document.createElement("div");
+		featureSection.style.cssText = `
+			margin-bottom: 16px;
+		`;
+
+		const featureLabel = document.createElement("label");
+		featureLabel.textContent = "Select a feature to ask about:";
+		featureLabel.style.cssText = `
+			display: block;
+			margin-bottom: 8px;
+			color: #333;
+			font-size: 14px;
+			font-weight: 500;
+		`;
+
+		const featureSelector = document.createElement("select");
+		featureSelector.id = "inline-feature-selector";
+		featureSelector.style.cssText = `
+			padding: 8px 12px;
+			border: 2px solid #e0e0e0;
+			border-radius: 6px;
+			font-size: 14px;
+			background: white;
+			color: #333;
+			cursor: pointer;
+			width: 100%;
+			max-width: 300px;
+			transition: border-color 0.3s ease;
+		`;
+
+		// Add focus effect
+		featureSelector.addEventListener("focus", function () {
+			this.style.outline = "none";
+			this.style.borderColor = "#2196f3";
+		});
+
+		// Populate with features in random order
+		featureSelector.innerHTML = '<option value="">Select feature...</option>';
+
+		// Create a shuffled copy of the features array
+		const shuffledFeatures = [...FEATURES].sort(() => Math.random() - 0.5);
+
+		shuffledFeatures.forEach((feature) => {
+			const option = document.createElement("option");
+			option.value = feature;
+			option.textContent = feature;
+			featureSelector.appendChild(option);
+		});
+
+		featureSection.appendChild(featureLabel);
+		featureSection.appendChild(featureSelector);
+
+		// Create suggested questions section
+		const questionsSection = document.createElement("div");
+		questionsSection.style.cssText = `
+			margin-bottom: 12px;
+		`;
+
+		const questionsLabel = document.createElement("h5");
+		questionsLabel.textContent = "Suggested Questions:";
+		questionsLabel.style.cssText = `
+			margin: 0 0 8px 0;
+			color: #333;
+			font-size: 14px;
+			font-weight: 500;
+		`;
+
+		const questionsContainer = document.createElement("div");
+		questionsContainer.id = "inline-questions-container";
+		questionsContainer.style.cssText = `
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+		`;
+
+		// Add placeholder text
+		const placeholder = document.createElement("div");
+		placeholder.textContent = "Select a feature to see suggested questions";
+		placeholder.style.cssText = `
+			color: #666;
+			font-style: italic;
+			text-align: center;
+			padding: 12px;
+			font-size: 13px;
+		`;
+		questionsContainer.appendChild(placeholder);
+
+		questionsSection.appendChild(questionsLabel);
+		questionsSection.appendChild(questionsContainer);
+
+		// Add event listener for feature selection
+		featureSelector.addEventListener("change", function () {
+			const selectedFeature = this.value;
+			if (selectedFeature && currentProblemId) {
+				updateInlineQuestions(selectedFeature, problemId);
+			} else {
+				// Show placeholder
+				questionsContainer.innerHTML = "";
+				const placeholder = document.createElement("div");
+				placeholder.textContent = "Select a feature to see suggested questions";
+				placeholder.style.cssText = `
+					color: #666;
+					font-style: italic;
+					text-align: center;
+					padding: 12px;
+					font-size: 13px;
+				`;
+				questionsContainer.appendChild(placeholder);
+			}
+		});
+
+		// Assemble feature box
+		featureBox.appendChild(header);
+		featureBox.appendChild(featureSection);
+		featureBox.appendChild(questionsSection);
+
+		// Add to the right panel after the quick questions container
+		const rightPanel = document.getElementById("right-panel");
+		if (rightPanel) {
+			rightPanel.appendChild(featureBox);
+		}
+	}
+
+	// Update inline questions based on selected feature
+	function updateInlineQuestions(featureName, problemId) {
+		const questions = questionsData.filter((q) => q.problem == problemId);
+		if (questions.length === 0) return;
+
+		// Use the first question to get the data dictionary
+		const question = questions[0];
+		const dataDict = parseDictString(question.dict);
+		const featureValue = dataDict[featureName];
+
+		if (featureValue === undefined) {
+			console.error("Feature not found:", featureName);
+			return;
+		}
+
+		// Define feature-specific question pools
+		const featureQuestionPools = {
+			Age: [
+				`How does this person's age of ${featureValue} affect their income potential?`,
+				`What age-related factors could influence this person's earning capacity?`,
+				`How does age ${featureValue} compare to peak earning years?`,
+				`What age-related patterns suggest about their income level?`,
+				`How might age ${featureValue} impact their likelihood of earning above 50k?`,
+				`What does age ${featureValue} tell us about their income bracket?`,
+			],
+			"Class of Worker": [
+				`How does being a ${featureValue} affect income potential?`,
+				`How does ${featureValue} work compare to other employment types?`,
+				`What benefits and drawbacks come with ${featureValue} work?`,
+				`What does ${featureValue} work suggest about their income level?`,
+				`How might ${featureValue} status affect their earnings?`,
+				`What income patterns are typical for ${featureValue} workers?`,
+			],
+			"Educational Attainment": [
+				`How does ${featureValue} education impact income potential?`,
+				`What are typical earnings for someone with ${featureValue} education?`,
+				`How does ${featureValue} compare to other education levels?`,
+				`What does ${featureValue} education suggest about income level?`,
+				`How might ${featureValue} education affect their earnings?`,
+				`What income patterns are associated with ${featureValue} education?`,
+			],
+			"Marital Status": [
+				`How does being ${featureValue} affect income potential?`,
+				`What are typical income patterns for ${featureValue} individuals?`,
+				`How does ${featureValue} status impact income level?`,
+				`What financial considerations come with ${featureValue} status?`,
+				`How might ${featureValue} status affect their earnings?`,
+				`What does ${featureValue} status suggest about income bracket?`,
+			],
+			Occupation: [
+				`How does working as a ${featureValue} affect income potential?`,
+				`What are typical earnings for ${featureValue} professionals?`,
+				`How does ${featureValue} compare to other occupations?`,
+				`What does ${featureValue} work suggest about income level?`,
+				`How might ${featureValue} occupation affect their earnings?`,
+				`What income patterns are typical for ${featureValue} workers?`,
+			],
+			"Place of Birth": [
+				`How does being born in ${featureValue} affect income potential?`,
+				`What are typical earnings for people from ${featureValue}?`,
+				`How does ${featureValue} background influence income level?`,
+				`What does ${featureValue} origin suggest about earnings?`,
+				`How might ${featureValue} background affect their income?`,
+				`What income patterns are associated with ${featureValue} origin?`,
+			],
+			"Usual Hours Worked per Week": [
+				`How do ${featureValue} work hours affect income potential?`,
+				`What are typical earnings for someone working ${featureValue} hours?`,
+				`How does ${featureValue} hours compare to full-time work?`,
+				`What does ${featureValue} hours suggest about income level?`,
+				`How might ${featureValue} hours affect their earnings?`,
+				`What income patterns are typical for ${featureValue} hour workers?`,
+			],
+			Sex: [
+				`How does being ${featureValue} affect income potential?`,
+				`What are typical earnings for ${featureValue} workers?`,
+				`How does ${featureValue} gender influence income level?`,
+				`What does ${featureValue} gender suggest about earnings?`,
+				`How might ${featureValue} gender affect their income?`,
+				`What income patterns are typical for ${featureValue} workers?`,
+			],
+			Race: [
+				`How does being ${featureValue} affect income potential?`,
+				`What are typical earnings for ${featureValue} individuals?`,
+				`How does ${featureValue} background influence income level?`,
+				`What does ${featureValue} race suggest about earnings?`,
+				`How might ${featureValue} race affect their income?`,
+				`What income patterns are associated with ${featureValue} background?`,
+			],
+		};
+
+		// Get the feature-specific questions
+		const featureQuestions = featureQuestionPools[featureName] || [
+			`How does this person's ${featureName} of ${featureValue} affect their income?`,
+			`What are the implications of ${featureName}: ${featureValue} for income?`,
+			`How might ${featureName} influence this person's earning potential?`,
+		];
+
+		// Update the questions container
+		const questionsContainer = document.getElementById(
+			"inline-questions-container"
+		);
+		if (questionsContainer) {
+			questionsContainer.innerHTML = "";
+
+			// Add feature-specific questions
+			featureQuestions.forEach((question) => {
+				const questionButton = document.createElement("button");
+				questionButton.textContent = question;
+				questionButton.style.cssText = `
+					padding: 8px 10px;
+					background: #ffffff;
+					border: 1px solid #e0e0e0;
+					border-radius: 4px;
+					cursor: pointer;
+					font-size: 12px;
+					color: #1976D2;
+					text-align: left;
+					transition: all 0.2s ease;
+					white-space: normal;
+					word-wrap: break-word;
+					line-height: 1.3;
+				`;
+
+				// Add hover effects
+				questionButton.addEventListener("mouseover", function () {
+					this.style.backgroundColor = "#E3F2FD";
+					this.style.borderColor = "#2196F3";
+				});
+				questionButton.addEventListener("mouseout", function () {
+					this.style.backgroundColor = "#ffffff";
+					this.style.borderColor = "#e0e0e0";
+				});
+
+				// Add click handler to copy question to chat
+				questionButton.addEventListener("click", function () {
+					const inputBox = document.getElementById("user-input");
+					if (inputBox) {
+						inputBox.value = this.textContent;
+						sendMessage();
+					}
+				});
+
+				questionsContainer.appendChild(questionButton);
+			});
+		}
+	}
+
+	// Load and display feature question data
+	function loadFeatureQuestion(problemId, featureName) {
+		const questions = questionsData.filter((q) => q.problem == problemId);
+		if (questions.length === 0) return;
+
+		// Use the first question to get the data dictionary
+		const question = questions[0];
+		currentQuestionData = question;
+
+		try {
+			const dataDict = parseDictString(question.dict);
+
+			// Get the specific feature value
+			const featureValue = dataDict[featureName];
+			if (featureValue === undefined) {
+				console.error("Feature not found:", featureName);
+				return;
+			}
+
+			// Update the question pool in the chat interface to feature-specific questions
+			updateChatQuestionPool(featureName, featureValue);
+
+			// Reset chat thread when new feature is selected
+			threadId = null;
+
+			console.log(
+				"Updated chat question pool for problem",
+				problemId,
+				"with feature:",
+				featureName,
+				"value:",
+				featureValue
+			);
+		} catch (error) {
+			console.error("Error parsing feature question data:", error);
+		}
+	}
+
+	// Update the chat question pool to feature-specific questions
+	function updateChatQuestionPool(featureName, featureValue) {
+		// Define feature-specific question pools
+		const featureQuestionPools = {
+			Age: [
+				`How does this person's age of ${featureValue} affect their income potential?`,
+				`What age-related factors could influence this person's earning capacity?`,
+				`How does age ${featureValue} compare to peak earning years?`,
+				`What age-related patterns suggest about their income level?`,
+				`How might age ${featureValue} impact their likelihood of earning above 50k?`,
+				`What does age ${featureValue} tell us about their income bracket?`,
+			],
+			"Class of Worker": [
+				`How does being a ${featureValue} affect income potential?`,
+				`How does ${featureValue} work compare to other employment types?`,
+				`What benefits and drawbacks come with ${featureValue} work?`,
+				`What does ${featureValue} work suggest about their income level?`,
+				`How might ${featureValue} status affect their earnings?`,
+				`What income patterns are typical for ${featureValue} workers?`,
+			],
+			"Educational Attainment": [
+				`How does ${featureValue} education impact income potential?`,
+				`What are typical earnings for someone with ${featureValue} education?`,
+				`How does ${featureValue} compare to other education levels?`,
+				`What does ${featureValue} education suggest about income level?`,
+				`How might ${featureValue} education affect their earnings?`,
+				`What income patterns are associated with ${featureValue} education?`,
+			],
+			"Marital Status": [
+				`How does being ${featureValue} affect income potential?`,
+				`What are typical income patterns for ${featureValue} individuals?`,
+				`How does ${featureValue} status impact income level?`,
+				`What financial considerations come with ${featureValue} status?`,
+				`How might ${featureValue} status affect their earnings?`,
+				`What does ${featureValue} status suggest about income bracket?`,
+			],
+			Occupation: [
+				`How does working as a ${featureValue} affect income potential?`,
+				`What are typical earnings for ${featureValue} professionals?`,
+				`How does ${featureValue} compare to other occupations?`,
+				`What does ${featureValue} work suggest about income level?`,
+				`How might ${featureValue} occupation affect their earnings?`,
+				`What income patterns are typical for ${featureValue} workers?`,
+			],
+			"Place of Birth": [
+				`How does being born in ${featureValue} affect income potential?`,
+				`What are typical earnings for people from ${featureValue}?`,
+				`How does ${featureValue} background influence income level?`,
+				`What does ${featureValue} origin suggest about earnings?`,
+				`How might ${featureValue} background affect their income?`,
+				`What income patterns are associated with ${featureValue} origin?`,
+			],
+			"Usual Hours Worked per Week": [
+				`How do ${featureValue} work hours affect income potential?`,
+				`What are typical earnings for someone working ${featureValue} hours?`,
+				`How does ${featureValue} hours compare to full-time work?`,
+				`What does ${featureValue} hours suggest about income level?`,
+				`How might ${featureValue} hours affect their earnings?`,
+				`What income patterns are typical for ${featureValue} hour workers?`,
+			],
+			Sex: [
+				`How does being ${featureValue} affect income potential?`,
+				`What are typical earnings for ${featureValue} workers?`,
+				`How does ${featureValue} gender influence income level?`,
+				`What does ${featureValue} gender suggest about earnings?`,
+				`How might ${featureValue} gender affect their income?`,
+				`What income patterns are typical for ${featureValue} workers?`,
+			],
+			Race: [
+				`How does being ${featureValue} affect income potential?`,
+				`What are typical earnings for ${featureValue} individuals?`,
+				`How does ${featureValue} background influence income level?`,
+				`What does ${featureValue} race suggest about earnings?`,
+				`How might ${featureValue} race affect their income?`,
+				`What income patterns are associated with ${featureValue} background?`,
+			],
+		};
+
+		// Get the feature-specific questions
+		const featureQuestions = featureQuestionPools[featureName] || [
+			`How does this person's ${featureName} of ${featureValue} affect their income?`,
+			`What are the implications of ${featureName}: ${featureValue} for income?`,
+			`How might ${featureName} influence this person's earning potential?`,
+		];
+
+		// Update the quick questions in the chat interface
+		const quickQuestionsContainer = document.querySelector(
+			".quick-questions-container"
+		);
+		if (quickQuestionsContainer) {
+			// Clear existing questions completely
+			quickQuestionsContainer.innerHTML = "";
+
+			// Add only feature-specific questions (first 3)
+			featureQuestions.slice(0, 3).forEach((question) => {
+				const questionButton = document.createElement("button");
+				questionButton.textContent = question;
+				questionButton.style.flex = "1";
+				questionButton.style.padding = "8px 8px";
+				questionButton.style.backgroundColor = "#ffffff";
+				questionButton.style.border = "1px solid #e0e0e0";
+				questionButton.style.borderRadius = "6px";
+				questionButton.style.cursor = "pointer";
+				questionButton.style.fontSize = "14px";
+				questionButton.style.color = "#1976D2";
+				questionButton.style.textAlign = "center";
+				questionButton.style.transition = "all 0.2s ease";
+				questionButton.style.whiteSpace = "nowrap";
+				questionButton.style.overflow = "hidden";
+				questionButton.style.textOverflow = "ellipsis";
+
+				// Add hover effects
+				questionButton.addEventListener("mouseover", function () {
+					this.style.backgroundColor = "#E3F2FD";
+					this.style.borderColor = "#2196F3";
+				});
+				questionButton.addEventListener("mouseout", function () {
+					this.style.backgroundColor = "#ffffff";
+					this.style.borderColor = "#e0e0e0";
+				});
+
+				// Add click handler
+				questionButton.addEventListener("click", function () {
+					const inputBox = document.getElementById("user-input");
+					if (inputBox) {
+						inputBox.value = this.textContent;
+						sendMessage();
+					}
+				});
+
+				quickQuestionsContainer.appendChild(questionButton);
+			});
+
+			// Create refresh button container for feature mode (now at the bottom)
+			const refreshContainer = document.createElement("div");
+			refreshContainer.style.cssText = `
+				display: flex;
+				justify-content: center;
+				margin-top: 10px;
+			`;
+
+			// Create refresh button for feature mode
+			const refreshButton = document.createElement("button");
+			refreshButton.textContent = "Refresh Feature Questions";
+			refreshButton.style.cssText = `
+				padding: 4px 8px;
+				background: #f5f5f5;
+				border: 1px solid #e0e0e0;
+				border-radius: 4px;
+				cursor: pointer;
+				font-size: 11px;
+				color: #666;
+				transition: all 0.2s ease;
+			`;
+
+			// Add hover effects
+			refreshButton.addEventListener("mouseover", function () {
+				this.style.background = "#e3f2fd";
+				this.style.borderColor = "#2196f3";
+				this.style.color = "#2196f3";
+			});
+			refreshButton.addEventListener("mouseout", function () {
+				this.style.background = "#f5f5f5";
+				this.style.borderColor = "#e0e0e0";
+				this.style.color = "#666";
+			});
+
+			// Add click handler for feature refresh
+			refreshButton.addEventListener("click", function () {
+				refreshFeatureQuestions(featureName, featureValue);
+			});
+
+			refreshContainer.appendChild(refreshButton);
+			quickQuestionsContainer.appendChild(refreshContainer);
+		}
+
+		console.log(`Updated chat question pool for feature: ${featureName}`);
+	}
+
+	// Refresh feature questions with new random selections
+	function refreshFeatureQuestions(featureName, featureValue) {
+		// Define feature-specific question pools
+		const featureQuestionPools = {
+			Age: [
+				`How does this person's age of ${featureValue} affect their income potential?`,
+				`What age-related factors could influence this person's earning capacity?`,
+				`How does age ${featureValue} compare to peak earning years?`,
+				`What age-related patterns suggest about their income level?`,
+				`How might age ${featureValue} impact their likelihood of earning above 50k?`,
+				`What does age ${featureValue} tell us about their income bracket?`,
+			],
+			"Class of Worker": [
+				`How does being a ${featureValue} affect income potential?`,
+				`How does ${featureValue} work compare to other employment types?`,
+				`What benefits and drawbacks come with ${featureValue} work?`,
+				`What does ${featureValue} work suggest about their income level?`,
+				`How might ${featureValue} status affect their earnings?`,
+				`What income patterns are typical for ${featureValue} workers?`,
+			],
+			"Educational Attainment": [
+				`How does ${featureValue} education impact income potential?`,
+				`What are typical earnings for someone with ${featureValue} education?`,
+				`How does ${featureValue} compare to other education levels?`,
+				`What does ${featureValue} education suggest about income level?`,
+				`How might ${featureValue} education affect their earnings?`,
+				`What income patterns are associated with ${featureValue} education?`,
+			],
+			"Marital Status": [
+				`How does being ${featureValue} affect income potential?`,
+				`What are typical income patterns for ${featureValue} individuals?`,
+				`How does ${featureValue} status impact income level?`,
+				`What financial considerations come with ${featureValue} status?`,
+				`How might ${featureValue} status affect their earnings?`,
+				`What does ${featureValue} status suggest about income bracket?`,
+			],
+			Occupation: [
+				`How does working as a ${featureValue} affect income potential?`,
+				`What are typical earnings for ${featureValue} professionals?`,
+				`How does ${featureValue} compare to other occupations?`,
+				`What does ${featureValue} work suggest about income level?`,
+				`How might ${featureValue} occupation affect their earnings?`,
+				`What income patterns are typical for ${featureValue} workers?`,
+			],
+			"Place of Birth": [
+				`How does being born in ${featureValue} affect income potential?`,
+				`What are typical earnings for people from ${featureValue}?`,
+				`How does ${featureValue} background influence income level?`,
+				`What does ${featureValue} origin suggest about earnings?`,
+				`How might ${featureValue} background affect their income?`,
+				`What income patterns are associated with ${featureValue} origin?`,
+			],
+			"Usual Hours Worked per Week": [
+				`How do ${featureValue} work hours affect income potential?`,
+				`What are typical earnings for someone working ${featureValue} hours?`,
+				`How does ${featureValue} hours compare to full-time work?`,
+				`What does ${featureValue} hours suggest about income level?`,
+				`How might ${featureValue} hours affect their earnings?`,
+				`What income patterns are typical for ${featureValue} hour workers?`,
+			],
+			Sex: [
+				`How does being ${featureValue} affect income potential?`,
+				`What are typical earnings for ${featureValue} workers?`,
+				`How does ${featureValue} gender influence income level?`,
+				`What does ${featureValue} gender suggest about earnings?`,
+				`How might ${featureValue} gender affect their income?`,
+				`What income patterns are typical for ${featureValue} workers?`,
+			],
+			Race: [
+				`How does being ${featureValue} affect income potential?`,
+				`What are typical earnings for ${featureValue} individuals?`,
+				`How does ${featureValue} background influence income level?`,
+				`What does ${featureValue} race suggest about earnings?`,
+				`How might ${featureValue} race affect their income?`,
+				`What income patterns are associated with ${featureValue} background?`,
+			],
+		};
+
+		// Get the feature-specific questions
+		const featureQuestions = featureQuestionPools[featureName] || [
+			`How does this person's ${featureName} of ${featureValue} affect their income?`,
+			`What are the implications of ${featureName}: ${featureValue} for income?`,
+			`How might ${featureName} influence this person's earning potential?`,
+		];
+
+		// Shuffle the questions and pick 3 random ones
+		const shuffledQuestions = [...featureQuestions].sort(
+			() => Math.random() - 0.5
+		);
+		const selectedQuestions = shuffledQuestions.slice(0, 3);
+
+		// Update the quick questions in the chat interface
+		const quickQuestionsContainer = document.querySelector(
+			".quick-questions-container"
+		);
+		if (quickQuestionsContainer) {
+			// Store the refresh button if it exists
+			const refreshContainer =
+				quickQuestionsContainer.querySelector("div:first-child");
+
+			// Clear existing questions but preserve refresh button
+			quickQuestionsContainer.innerHTML = "";
+
+			// Restore refresh button if it existed
+			if (refreshContainer) {
+				quickQuestionsContainer.appendChild(refreshContainer);
+			}
+
+			// Add new random feature questions
+			selectedQuestions.forEach((question) => {
+				const questionButton = document.createElement("button");
+				questionButton.textContent = question;
+				questionButton.style.flex = "1";
+				questionButton.style.padding = "8px 8px";
+				questionButton.style.backgroundColor = "#ffffff";
+				questionButton.style.border = "1px solid #e0e0e0";
+				questionButton.style.borderRadius = "6px";
+				questionButton.style.cursor = "pointer";
+				questionButton.style.fontSize = "14px";
+				questionButton.style.color = "#1976D2";
+				questionButton.style.textAlign = "center";
+				questionButton.style.transition = "all 0.2s ease";
+				questionButton.style.whiteSpace = "nowrap";
+				questionButton.style.overflow = "hidden";
+				questionButton.style.textOverflow = "ellipsis";
+
+				// Add hover effects
+				questionButton.addEventListener("mouseover", function () {
+					this.style.backgroundColor = "#E3F2FD";
+					this.style.borderColor = "#2196F3";
+				});
+				questionButton.addEventListener("mouseout", function () {
+					this.style.backgroundColor = "#ffffff";
+					this.style.borderColor = "#e0e0e0";
+				});
+
+				// Add click handler
+				questionButton.addEventListener("click", function () {
+					const inputBox = document.getElementById("user-input");
+					if (inputBox) {
+						inputBox.value = this.textContent;
+						sendMessage();
+					}
+				});
+
+				quickQuestionsContainer.appendChild(questionButton);
+			});
+		}
+
+		console.log(`Refreshed feature questions for: ${featureName}`);
+	}
+
+	// Update the data table for feature questions
+	function updateFeatureTable(featureName, featureValue) {
+		const table = document.getElementById("table");
+		const tbody = table.querySelector("tbody");
+
+		// Clear existing rows except header
+		const headerRow = tbody.querySelector("tr");
+		tbody.innerHTML = "";
+		tbody.appendChild(headerRow);
+
+		// Add single row for the selected feature
+		const row = document.createElement("tr");
+		const labelCell = document.createElement("td");
+		const valueCell = document.createElement("td");
+
+		labelCell.textContent = featureName;
+		valueCell.textContent = featureValue;
+
+		row.appendChild(labelCell);
+		row.appendChild(valueCell);
+		tbody.appendChild(row);
+	}
+
+	// Update the summary for feature questions
+	function updateFeatureSummary(featureName, featureValue) {
+		const summaryElement = document.querySelector(
+			"#llm-summary .income-predictor-summary-content"
+		);
+		if (summaryElement) {
+			summaryElement.textContent = `This person's ${featureName} is: ${featureValue}`;
+		}
+	}
+
+	// Add test function for debugging type selector
+	window.testTypeSelector = function () {
+		console.log("Testing type selector...");
+		console.log("Current view:", currentView);
+		console.log("Current problem ID:", currentProblemId);
+		populateTypeSelector();
+	};
+
+	// Add test function for switching to View 3
+	window.testView3 = function () {
+		console.log("Switching to View 3...");
+		selectView(3);
+	};
+
+	// Add comprehensive debug function
+	window.debugElements = function () {
+		console.log("=== DEBUGGING ELEMENTS ===");
+		console.log(
+			"All selector groups:",
+			document.querySelectorAll(".selector-group")
+		);
+		console.log("Type selector:", document.getElementById("type-selector"));
+		console.log(
+			"Question selector:",
+			document.getElementById("question-selector")
+		);
+		console.log(
+			"Summary selector:",
+			document.getElementById("summary-selector")
+		);
+		console.log("Current view:", currentView);
+		console.log("Current problem ID:", currentProblemId);
+
+		// Check if type selector exists in different ways
+		const byId = document.getElementById("type-selector");
+		const byQuery = document.querySelector("#type-selector");
+		const byTag = document.querySelector("select#type-selector");
+
+		console.log("Type selector by ID:", byId);
+		console.log("Type selector by query:", byQuery);
+		console.log("Type selector by tag:", byTag);
+
+		// Check the second selector group specifically
+		const secondGroup = document.querySelector(".selector-group:nth-child(2)");
+		console.log("Second selector group:", secondGroup);
+		if (secondGroup) {
+			console.log("Second group children:", secondGroup.children);
+		}
+
+		// Check what's inside the type selector
+		const typeSelector = document.getElementById("type-selector");
+		if (typeSelector) {
+			console.log("Type selector innerHTML:", typeSelector.innerHTML);
+			console.log("Type selector children:", typeSelector.children);
+			console.log("Type selector childNodes:", typeSelector.childNodes);
+
+			// Check for buttons specifically
+			const normalBtn = document.getElementById("normal-questions-btn");
+			const featureBtn = document.getElementById("feature-questions-btn");
+			console.log("Normal button:", normalBtn);
+			console.log("Feature button:", featureBtn);
+
+			// Check computed styles
+			console.log(
+				"Type selector computed display:",
+				window.getComputedStyle(typeSelector).display
+			);
+			console.log(
+				"Type selector computed visibility:",
+				window.getComputedStyle(typeSelector).visibility
+			);
+			console.log(
+				"Type selector computed opacity:",
+				window.getComputedStyle(typeSelector).opacity
+			);
+		}
+	};
+
+	// Add test function to make buttons more visible
+	window.testButtons = function () {
+		const normalBtn = document.getElementById("normal-questions-btn");
+		const featureBtn = document.getElementById("feature-questions-btn");
+
+		if (normalBtn && featureBtn) {
+			console.log("Buttons found! Making them more visible...");
+
+			// Make buttons more prominent
+			normalBtn.style.cssText = `
+				padding: 12px 20px !important;
+				border: 3px solid #ff0000 !important;
+				background: #ff0000 !important;
+				color: white !important;
+				border-radius: 8px !important;
+				cursor: pointer !important;
+				font-size: 16px !important;
+				font-weight: bold !important;
+				transition: all 0.3s ease !important;
+				box-shadow: 0 4px 8px rgba(0,0,0,0.3) !important;
+			`;
+
+			featureBtn.style.cssText = `
+				padding: 12px 20px !important;
+				border: 3px solid #00ff00 !important;
+				background: #00ff00 !important;
+				color: black !important;
+				border-radius: 8px !important;
+				cursor: pointer !important;
+				font-size: 16px !important;
+				font-weight: bold !important;
+				transition: all 0.3s ease !important;
+				box-shadow: 0 4px 8px rgba(0,0,0,0.3) !important;
+			`;
+
+			console.log("Buttons should now be bright red and green!");
+		} else {
+			console.log("Buttons not found!");
+		}
+	};
+
+	// Add function to check selector group structure
+	window.checkStructure = function () {
+		console.log("=== CHECKING STRUCTURE ===");
+
+		const selectorGroups = document.querySelectorAll(".selector-group");
+		console.log("Number of selector groups:", selectorGroups.length);
+
+		selectorGroups.forEach((group, index) => {
+			console.log(`Group ${index + 1}:`, group);
+			console.log(`Group ${index + 1} children:`, group.children);
+
+			// Check each child
+			Array.from(group.children).forEach((child, childIndex) => {
+				console.log(
+					`  Child ${childIndex + 1}:`,
+					child.tagName,
+					child.id || child.className
+				);
+			});
+		});
+
+		// Check where the type selector actually is
+		const typeSelector = document.getElementById("type-selector");
+		if (typeSelector) {
+			console.log("Type selector parent:", typeSelector.parentElement);
+			console.log(
+				"Type selector parent class:",
+				typeSelector.parentElement?.className
+			);
+			console.log(
+				"Type selector position in parent:",
+				Array.from(typeSelector.parentElement?.children || []).indexOf(
+					typeSelector
+				)
+			);
+		}
+	};
+
+	// Restore the original question pool
+	function restoreOriginalQuestionPool() {
+		// Update the quick questions in the chat interface
+		const quickQuestionsContainer = document.querySelector(
+			".quick-questions-container"
+		);
+		if (quickQuestionsContainer) {
+			// Store the refresh button if it exists
+			const refreshContainer =
+				quickQuestionsContainer.querySelector("div:last-child");
+
+			// Clear existing questions but preserve refresh button
+			quickQuestionsContainer.innerHTML = "";
+
+			// Add original questions (first 3)
+			originalQuestionPool.slice(0, 3).forEach((question) => {
+				const questionButton = document.createElement("button");
+				questionButton.textContent = question;
+				questionButton.style.flex = "1";
+				questionButton.style.padding = "8px 8px";
+				questionButton.style.backgroundColor = "#ffffff";
+				questionButton.style.border = "1px solid #e0e0e0";
+				questionButton.style.borderRadius = "6px";
+				questionButton.style.cursor = "pointer";
+				questionButton.style.fontSize = "14px";
+				questionButton.style.color = "#1976D2";
+				questionButton.style.textAlign = "center";
+				questionButton.style.transition = "all 0.2s ease";
+				questionButton.style.whiteSpace = "nowrap";
+				questionButton.style.overflow = "hidden";
+				questionButton.style.textOverflow = "ellipsis";
+
+				// Add hover effects
+				questionButton.addEventListener("mouseover", function () {
+					this.style.backgroundColor = "#E3F2FD";
+					this.style.borderColor = "#2196F3";
+				});
+				questionButton.addEventListener("mouseout", function () {
+					this.style.backgroundColor = "#ffffff";
+					this.style.borderColor = "#e0e0e0";
+				});
+
+				// Add click handler
+				questionButton.addEventListener("click", function () {
+					const inputBox = document.getElementById("user-input");
+					if (inputBox) {
+						inputBox.value = this.textContent;
+						sendMessage();
+					}
+				});
+
+				quickQuestionsContainer.appendChild(questionButton);
+			});
+
+			// Restore refresh button at the bottom if it existed
+			if (refreshContainer) {
+				quickQuestionsContainer.appendChild(refreshContainer);
+			}
+		}
+
+		console.log("Restored original question pool");
+	}
+
+	// Refresh quick questions with new random selections
+	function refreshQuickQuestions() {
+		console.log("Refresh function called, current type:", currentType);
+
+		if (currentType === "feature") {
+			// For feature questions, refresh the current feature questions
+			const featureSelector = document.getElementById(
+				"inline-feature-selector"
+			);
+			if (featureSelector && featureSelector.value && currentProblemId) {
+				const selectedFeature = featureSelector.value;
+				const questions = questionsData.filter(
+					(q) => q.problem == currentProblemId
+				);
+				if (questions.length > 0) {
+					const question = questions[0];
+					const dataDict = parseDictString(question.dict);
+					const featureValue = dataDict[selectedFeature];
+					if (featureValue !== undefined) {
+						refreshFeatureQuestions(selectedFeature, featureValue);
+						console.log("Refreshed feature-specific questions");
+					}
+				}
+			}
+		} else {
+			// Refresh normal questions with random selection
+			refreshNormalQuestions();
+			console.log("Refreshed normal questions");
+		}
+	}
+
+	// Refresh normal questions with random selection
+	function refreshNormalQuestions() {
+		// Shuffle the question pool and pick 3 random questions
+		const shuffledQuestions = [...originalQuestionPool].sort(
+			() => Math.random() - 0.5
+		);
+		const selectedQuestions = shuffledQuestions.slice(0, 3);
+
+		// Update the quick questions in the chat interface
+		const quickQuestionsContainer = document.querySelector(
+			".quick-questions-container"
+		);
+		if (quickQuestionsContainer) {
+			// Store the refresh button if it exists
+			const refreshContainer =
+				quickQuestionsContainer.querySelector("div:last-child");
+
+			// Clear existing questions but preserve refresh button
+			quickQuestionsContainer.innerHTML = "";
+
+			// Add new random questions
+			selectedQuestions.forEach((question) => {
+				const questionButton = document.createElement("button");
+				questionButton.textContent = question;
+				questionButton.style.flex = "1";
+				questionButton.style.padding = "8px 8px";
+				questionButton.style.backgroundColor = "#ffffff";
+				questionButton.style.border = "1px solid #e0e0e0";
+				questionButton.style.borderRadius = "6px";
+				questionButton.style.cursor = "pointer";
+				questionButton.style.fontSize = "14px";
+				questionButton.style.color = "#1976D2";
+				questionButton.style.textAlign = "center";
+				questionButton.style.transition = "all 0.2s ease";
+				questionButton.style.whiteSpace = "nowrap";
+				questionButton.style.overflow = "hidden";
+				questionButton.style.textOverflow = "ellipsis";
+
+				// Add hover effects
+				questionButton.addEventListener("mouseover", function () {
+					this.style.backgroundColor = "#E3F2FD";
+					this.style.borderColor = "#2196F3";
+				});
+				questionButton.addEventListener("mouseout", function () {
+					this.style.backgroundColor = "#ffffff";
+					this.style.borderColor = "#e0e0e0";
+				});
+
+				// Add click handler
+				questionButton.addEventListener("click", function () {
+					const inputBox = document.getElementById("user-input");
+					if (inputBox) {
+						inputBox.value = this.textContent;
+						sendMessage();
+					}
+				});
+
+				quickQuestionsContainer.appendChild(questionButton);
+			});
+
+			// Restore refresh button at the bottom if it existed
+			if (refreshContainer) {
+				quickQuestionsContainer.appendChild(refreshContainer);
+			}
+		}
+	}
+
+	// Add test function to manually create refresh button
+	window.testRefreshButton = function () {
+		console.log("Testing refresh button creation...");
+
+		const quickQuestionsContainer = document.querySelector(
+			".quick-questions-container"
+		);
+		console.log("Quick questions container:", quickQuestionsContainer);
+
+		if (quickQuestionsContainer) {
+			// Create refresh button container
+			const refreshContainer = document.createElement("div");
+			refreshContainer.style.cssText = `
+				display: flex;
+				justify-content: center;
+				margin-bottom: 10px;
+				border: 2px solid red;
+			`;
+
+			// Create refresh button
+			const refreshButton = document.createElement("button");
+			refreshButton.textContent = "Refresh";
+			refreshButton.style.cssText = `
+				padding: 4px 8px;
+				background: #f5f5f5;
+				border: 1px solid #e0e0e0;
+				border-radius: 4px;
+				cursor: pointer;
+				font-size: 11px;
+				color: #666;
+				transition: all 0.2s ease;
+			`;
+
+			// Add click handler
+			refreshButton.addEventListener("click", function () {
+				console.log("Refresh button clicked!");
+				refreshQuickQuestions();
+			});
+
+			refreshContainer.appendChild(refreshButton);
+
+			// Insert at the beginning of the container
+			quickQuestionsContainer.insertBefore(
+				refreshContainer,
+				quickQuestionsContainer.firstChild
+			);
+
+			console.log("Refresh button added!");
+		} else {
+			console.log("Quick questions container not found!");
+		}
+	};
+})();
